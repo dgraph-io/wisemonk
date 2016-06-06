@@ -1,16 +1,29 @@
 # Wisemonk
 
-Wisemonk is a slackbot written in Go that listens to messages on slack and responds to them via the [Slack RTM API](https://api.slack.com/rtm).
+Wisemonk is a slackbot to keep people from wasting too much time on Slack. It isn't just another bot, its a super intelligent one. You can tell it what channels to monitor and then it can
 
-Wisemonk isn't just another bot, its a super intelligent one. You can tell it what channels to monitor and set a message limit in a specified duration. It will alert you when the number of messages exchanged exceed the max message limit set by you in the given duration.
+* alert you when you are talking too much.
+* automatically create a topic on discourse with the contents of your chat and share the url with you.
+* create a topic on demand on discourse.
+
+A lot of teams have found that the synchronous nature of communication on slack destroys the productivity of their team members.For more on that read this article [here](https://medium.com/better-people/slack-i-m-breaking-up-with-you-54600ace03ea#.ox3a8tukc). Thus we at Dgraph try to have most of our structured and meaningful conversations on [Discourse](https://www.discourse.org/). Wisemonk constantly monitors our communication and helps us move our discussion to discourse when we are talking a lot.
+
+## Install
+
+`go get github.com/dgraph-io/wisemonk`
+
+`go install github.com/dgraph-io/wisemonk`
+
+We use govendor to manage our deps and all our deps our checked in to the repo so you don't need to install them separately.
 
 ## Usage
 
-After cloning the repo, you can build the binary and run wisemonk like this.
+Since the wisemonk binary is now installed and if you have `$GOPATH/bin` in your path you can call wisemonk like this
 
-`./wisemonk -token="bot-user-token" -channels="G1D59039B,G1D6B4T6Z" -discoursekey="discourse-api-key" discourseprefix="https://discuss.dgraph.io" -interval=20*time.Minute -maxmsg=50
+`wisemonk -token="bot-user-token" -channels="G1D59039B,G1D6B4T6Z" -discoursekey="discourse-api-key" discourseprefix="https://discuss.dgraph.io" -interval=20*time.Minute -maxmsg=50
 `
-So now if in any 20 minute interval more than 50 messages are exchanged, wisemonk would alert you.
+
+Now if in any 20 minute interval more than 50 messages are exchanged, wisemonk would alert you.
 
 Token for slack can be obtained after creating a bot user at https://api.slack.com/bot-users. Also note that you would have to add wisemonk as a user to all the channels that you want it to be active on.
 
@@ -48,3 +61,10 @@ If you are using discourse and you observe that you are having an important disc
 `create topic [title of discourse topic]`
 
 Wisemonk will reply back with the url of the new topic that was created.
+
+## Technologies involved
+
+Wisemonk is written in Go and makes use of
+
+* [Slack RTM API](https://api.slack.com/rtm)
+* [Discourse API](https://meta.discourse.org/t/discourse-api-documentation/22706)

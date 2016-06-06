@@ -1,0 +1,19 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "t1F04VD0ROQUBEk1pLwEcdZx/Vk=",
+			"path": "github.com/nlopes/slack",
+			"revision": "e337a7316d3fe9aa55b7063035d6d32f3dbcaeb9",
+			"revisionTime": "2016-04-30T16:04:49Z"
+		},
+		{
+			"checksumSHA1": "fiFafSbOoQaM6Ad+zn7z/xAwLtE=",
+			"path": "golang.org/x/net/websocket",
+			"revision": "fb93926129b8ec0056f2f458b1f519654814edf0",
+			"revisionTime": "2016-04-12T22:48:50Z"
+		}
+	],
+	"rootPath": "github.com/dgraph-io/wisemonk"
+}
