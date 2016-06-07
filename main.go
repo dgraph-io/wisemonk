@@ -47,8 +47,11 @@ var channelIds = flag.String("channels", "",
 var discourseKey = flag.String("discoursekey", "",
 	"API key used to authenticate requests to discourse.")
 var discoursePrefix = flag.String("discourseprefix", "",
-	"Prefix for api communication with discourse")
+	"Prefix for api communication with discourse.")
 var yoda []byte
+
+// Map of slack userids to usernames.
+var memmap map[string]string
 
 // Message to send when number of messages in an interval >= *maxmsg. We send
 // the Go Proverbs so that we learn all of them eventually :P.
@@ -72,6 +75,8 @@ var proverbs []string = []string{
 	"Design the architecture, name the components, document the details.",
 	"Documentation is for users.",
 	"Don't panic."}
+
+const slackPrefix = "https://slack.com/api"
 
 type Bucket struct {
 	// Unix time for the bucket
@@ -183,23 +188,23 @@ func topicUrl(tb TopicBody) string {
 }
 
 func sanitizeTitle(title string) string {
-	t := title
+	t := strings.Trim(title, " ")
 	// Discourse requires title to be atleast 20 chars.
 	minLen := 20
-	if len(title) < minLen {
-		t = "Topic created by wisemonk with title: " + title
+	if len(t) < minLen {
+		t = "Topic created by wisemonk with title: " + t
 		return t
 	}
 
 	maxLen := 100
 	// This is the max that discourse allows.
-	if len(title) > maxLen {
-		t = title[:maxLen]
+	if len(t) > maxLen {
+		t = t[:maxLen]
 	}
 	// So that truncation happens at the last word break if possible.
-	idx := strings.LastIndex(title, " ")
+	idx := strings.LastIndex(t, " ")
 	if idx != -1 && idx >= minLen {
-		t = title[:idx]
+		t = t[:idx]
 	}
 	return t
 }
@@ -282,6 +287,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 		log.Fatal(err)
 	}
 	ts := int64(tsf)
+	msg := fmt.Sprintf("%-14s: %s", memmap[m.User], m.Text)
 
 	// To check if a bucket for the timestamp already exists
 	exists := false
@@ -289,7 +295,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 		b := &c.buckets[i]
 		if b.utime == ts {
 			b.count++
-			b.msgs = append(b.msgs, m.Text)
+			b.msgs = append(b.msgs, msg)
 			exists = true
 			break
 		}
@@ -297,7 +303,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 
 	if exists != true {
 		c.buckets = append(c.buckets, Bucket{utime: ts, count: 1,
-			msgs: []string{m.Text}})
+			msgs: []string{msg}})
 	}
 }
 
@@ -414,6 +420,50 @@ func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
 	}
 }
 
+type Members struct {
+	Users []Member `json:"members"`
+}
+
+type Member struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func runQueryAndParseResponse(q string, data interface{}) {
+	resp, err := http.Get(q)
+	if err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+
+	if resp.StatusCode != 200 {
+		log.Fatalf("Url: %s. Status: %v", q, resp.Status)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+
+	if err := json.Unmarshal(body, data); err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+}
+
+func slackQuery(suffix string) string {
+	return fmt.Sprintf("%s/%s?token=%s", slackPrefix, suffix, *authToken)
+}
+
+func cacheUsernames() {
+	q := slackQuery("users.list")
+	var m Members
+
+	runQueryAndParseResponse(q, &m)
+	for _, u := range m.Users {
+		memmap[u.Id] = u.Name
+	}
+}
+
 func init() {
 	var err error
 	yoda, err = ioutil.ReadFile("yoda.txt")
@@ -440,6 +490,8 @@ func main() {
 
 	var wg sync.WaitGroup
 	cmap = make(map[string]*Counter)
+	memmap = make(map[string]string)
+	cacheUsernames()
 
 	schannels := strings.Split(*channelIds, ",")
 	for _, cid := range schannels {

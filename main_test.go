@@ -54,6 +54,12 @@ func TestSanitizeTitle(t *testing.T) {
 	if st := sanitizeTitle(title); st != expected {
 		t.Errorf("Expected: %s, Got: %s", expected, st)
 	}
+
+	title = "          Short title"
+	expected = "Topic created by wisemonk with title: Short title"
+	if st := sanitizeTitle(title); st != expected {
+		t.Errorf("Expected: %s, Got: %s", expected, st)
+	}
 }
 
 func TestAskToMeditate(t *testing.T) {
