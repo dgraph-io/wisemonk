@@ -48,6 +48,8 @@ var discourseKey = flag.String("discoursekey", "",
 	"API key used to authenticate requests to discourse.")
 var discoursePrefix = flag.String("discourseprefix", "",
 	"Prefix for api communication with discourse.")
+var discourseCategory = flag.String("discoursecat", "Slack",
+	"Discourse category in which new topics would be created.")
 var yoda []byte
 
 // Map of slack userids to usernames.
@@ -165,8 +167,8 @@ func callYoda(c *Counter, rtm RTM, m string) {
 }
 
 func discourseQuery(suffix string) string {
-	return fmt.Sprintf("%s/%s?api_key=%s", *discoursePrefix, suffix,
-		*discourseKey)
+	return fmt.Sprintf("%s/%s?api_key=%s&api_username=wisemonk", *discoursePrefix,
+		suffix, *discourseKey)
 }
 
 // Required fields for a discourse topic
@@ -222,7 +224,7 @@ func createTopic(c *Counter, title string) string {
 	}
 	buf.WriteString("```")
 
-	t := Topic{Title: title, Raw: buf.String(), Category: "Slack"}
+	t := Topic{Title: title, Raw: buf.String(), Category: *discourseCategory}
 	bb := new(bytes.Buffer)
 	json.NewEncoder(bb).Encode(t)
 	q := discourseQuery("posts.json")
@@ -464,6 +466,42 @@ func cacheUsernames() {
 	}
 }
 
+type CategoryRes struct {
+	CategoryList Categories `json:"category_list"`
+}
+
+type Categories struct {
+	Cats []Category `json:"categories"`
+}
+
+type Category struct {
+	Name string `json:"name"`
+}
+
+// Checks if the discourse Category supplied as flag exists. If not
+// it logs error and exits.
+func checkDiscourseCategory() {
+	if *discourseKey == "" {
+		return
+	}
+
+	q := discourseQuery("categories.json")
+	var cr CategoryRes
+
+	runQueryAndParseResponse(q, &cr)
+	exists := false
+	for _, c := range cr.CategoryList.Cats {
+		if c.Name == *discourseCategory {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		log.Fatalf("Category %s doesn't exist in discourse.",
+			*discourseCategory)
+	}
+}
+
 func init() {
 	var err error
 	yoda, err = ioutil.ReadFile("yoda.txt")
@@ -483,6 +521,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+	checkDiscourseCategory()
 	api := slack.New(*authToken)
 	api.SetDebug(false)
 	rtm := api.NewRTM()
