@@ -47,7 +47,9 @@ var channelIds = flag.String("channels", "",
 var discourseKey = flag.String("discoursekey", "",
 	"API key used to authenticate requests to discourse.")
 var discoursePrefix = flag.String("discourseprefix", "",
-	"Prefix for api communication with discourse")
+	"Prefix for api communication with discourse.")
+var discourseCategory = flag.String("discoursecat", "Slack",
+	"Discourse category in which new topics would be created.")
 var yoda []byte
 
 // Message to send when number of messages in an interval >= *maxmsg. We send
@@ -72,6 +74,8 @@ var proverbs []string = []string{
 	"Design the architecture, name the components, document the details.",
 	"Documentation is for users.",
 	"Don't panic."}
+
+const slackPrefix = "https://slack.com/api"
 
 type Bucket struct {
 	// Unix time for the bucket
@@ -160,8 +164,8 @@ func callYoda(c *Counter, rtm RTM, m string) {
 }
 
 func discourseQuery(suffix string) string {
-	return fmt.Sprintf("%s/%s?api_key=%s", *discoursePrefix, suffix,
-		*discourseKey)
+	return fmt.Sprintf("%s/%s?api_key=%s&api_username=wisemonk", *discoursePrefix,
+		suffix, *discourseKey)
 }
 
 // Required fields for a discourse topic
@@ -183,23 +187,23 @@ func topicUrl(tb TopicBody) string {
 }
 
 func sanitizeTitle(title string) string {
-	t := title
+	t := strings.Trim(title, " ")
 	// Discourse requires title to be atleast 20 chars.
 	minLen := 20
-	if len(title) < minLen {
-		t = "Topic created by wisemonk with title: " + title
+	if len(t) < minLen {
+		t = "Topic created by wisemonk with title: " + t
 		return t
 	}
 
 	maxLen := 100
 	// This is the max that discourse allows.
-	if len(title) > maxLen {
-		t = title[:maxLen]
+	if len(t) > maxLen {
+		t = t[:maxLen]
 	}
 	// So that truncation happens at the last word break if possible.
-	idx := strings.LastIndex(title, " ")
+	idx := strings.LastIndex(t, " ")
 	if idx != -1 && idx >= minLen {
-		t = title[:idx]
+		t = t[:idx]
 	}
 	return t
 }
@@ -217,7 +221,7 @@ func createTopic(c *Counter, title string) string {
 	}
 	buf.WriteString("```")
 
-	t := Topic{Title: title, Raw: buf.String(), Category: "Slack"}
+	t := Topic{Title: title, Raw: buf.String(), Category: *discourseCategory}
 	bb := new(bytes.Buffer)
 	json.NewEncoder(bb).Encode(t)
 	q := discourseQuery("posts.json")
@@ -269,9 +273,30 @@ func sendMessage(c *Counter, rtm RTM) {
 	callYoda(c, rtm, msg)
 }
 
+func substituteUsernames(text string, memmap map[string]string) string {
+	userRegex, err := regexp.Compile(`<@U[A-Z0-9]{8}>`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res := userRegex.FindAllString(text, -1)
+	if res == nil {
+		return text
+	}
+
+	for _, u := range res {
+		// extracting the userid
+		uid := u[2 : len(u)-1]
+		if uname, ok := memmap[uid]; ok {
+			text = strings.Replace(text, u, "@"+uname, -1)
+		}
+	}
+	return text
+}
+
 // Increment increases the count for a bucket or adds a new bucket with count 1
 // to the Counter c
-func (c *Counter) Increment(m *slack.Msg) {
+func (c *Counter) Increment(m *slack.Msg, memmap map[string]string) {
 	if m.Channel != c.channelId {
 		log.Fatalf("Channel mismatch, Expected: %s, Got: %s",
 			c.channelId, m.Channel)
@@ -282,6 +307,8 @@ func (c *Counter) Increment(m *slack.Msg) {
 		log.Fatal(err)
 	}
 	ts := int64(tsf)
+	m.Text = substituteUsernames(m.Text, memmap)
+	msg := fmt.Sprintf("%-14s: %s", memmap[m.User], m.Text)
 
 	// To check if a bucket for the timestamp already exists
 	exists := false
@@ -289,7 +316,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 		b := &c.buckets[i]
 		if b.utime == ts {
 			b.count++
-			b.msgs = append(b.msgs, m.Text)
+			b.msgs = append(b.msgs, msg)
 			exists = true
 			break
 		}
@@ -297,7 +324,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 
 	if exists != true {
 		c.buckets = append(c.buckets, Bucket{utime: ts, count: 1,
-			msgs: []string{m.Text}})
+			msgs: []string{msg}})
 	}
 }
 
@@ -386,7 +413,8 @@ func askToMeditate(c *Counter, m string) string {
 	return fmt.Sprintf("Okay, I am going to meditate for %s", d)
 }
 
-func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
+func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup,
+	memmap map[string]string) {
 	defer wg.Done()
 	ticker := time.NewTicker(time.Second * 10)
 
@@ -401,7 +429,7 @@ func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
 			}
 			// If we receive a message on the channel, we increment
 			// the counter.
-			c.Increment(msg)
+			c.Increment(msg, memmap)
 		case <-ticker.C:
 			// We perform this check only if the monk is not meditating.
 			if d := c.MeditationEnd(); d < 0 {
@@ -411,6 +439,86 @@ func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
 				}
 			}
 		}
+	}
+}
+
+type Members struct {
+	Users []Member `json:"members"`
+}
+
+type Member struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func runQueryAndParseResponse(q string, data interface{}) {
+	resp, err := http.Get(q)
+	if err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+
+	if resp.StatusCode != 200 {
+		log.Fatalf("Url: %s. Status: %v", q, resp.Status)
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+
+	if err := json.Unmarshal(body, data); err != nil {
+		log.Fatalf("Url: %s. Error: %v", q, err)
+	}
+}
+
+func slackQuery(suffix string) string {
+	return fmt.Sprintf("%s/%s?token=%s", slackPrefix, suffix, *authToken)
+}
+
+func cacheUsernames(url string) map[string]string {
+	memmap := make(map[string]string)
+	var m Members
+
+	runQueryAndParseResponse(url, &m)
+	for _, u := range m.Users {
+		memmap[u.Id] = u.Name
+	}
+	return memmap
+}
+
+type CategoryRes struct {
+	CategoryList Categories `json:"category_list"`
+}
+
+type Categories struct {
+	Cats []Category `json:"categories"`
+}
+
+type Category struct {
+	Name string `json:"name"`
+}
+
+// Checks if the discourse Category supplied as flag exists. If not
+// it logs error and exits.
+func checkDiscourseCategory(url string) {
+	if *discourseKey == "" {
+		return
+	}
+
+	var cr CategoryRes
+
+	runQueryAndParseResponse(url, &cr)
+	exists := false
+	for _, c := range cr.CategoryList.Cats {
+		if c.Name == *discourseCategory {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		log.Fatalf("Category %s doesn't exist in discourse.",
+			*discourseCategory)
 	}
 }
 
@@ -425,7 +533,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	createRegex, err = regexp.Compile(`create topic (.+)`)
+	createRegex, err = regexp.Compile(`wisemonk create topic (.+)`)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -433,6 +541,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+	checkDiscourseCategory(discourseQuery("categories.json"))
 	api := slack.New(*authToken)
 	api.SetDebug(false)
 	rtm := api.NewRTM()
@@ -440,6 +549,8 @@ func main() {
 
 	var wg sync.WaitGroup
 	cmap = make(map[string]*Counter)
+	// Map of slack userids to usernames.
+	memmap := cacheUsernames(slackQuery("users.list"))
 
 	schannels := strings.Split(*channelIds, ",")
 	for _, cid := range schannels {
@@ -447,7 +558,7 @@ func main() {
 		c := &Counter{channelId: cid}
 		c.messages = make(chan *slack.Msg, 500)
 		cmap[cid] = c
-		go c.checkOrIncr(rtm, wg)
+		go c.checkOrIncr(rtm, wg, memmap)
 	}
 	go listen(rtm)
 	wg.Wait()
