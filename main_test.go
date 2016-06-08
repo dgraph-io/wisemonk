@@ -113,7 +113,7 @@ func TestIncrement(t *testing.T) {
 	}
 
 	for _, m := range msgs {
-		c.Increment(&m)
+		c.Increment(&m, map[string]string{})
 	}
 	if len(c.buckets) != 2 {
 		t.Errorf("Expected: %d,Got: %d buckets", 1, len(c.buckets))
@@ -132,7 +132,7 @@ func addBuckets(c *Counter, text string, t int64) {
 	for i := 0; i < 10; i++ {
 		c.Increment(&slack.Msg{Channel: "general",
 			Timestamp: strconv.FormatInt(t-int64(i), 10),
-			Text:      text})
+			Text:      text}, map[string]string{})
 	}
 }
 
@@ -237,7 +237,7 @@ func TestCreateNewTopic(t *testing.T) {
 	c := &Counter{channelId: "general"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
-	m := "create topic testing wisemonk"
+	m := "wisemonk create topic testing wisemonk"
 	rtm := &r{}
 	ts := createServer(t, http.StatusOK, TopicBody{Id: 1,
 		Slug: "test-title-created"})
@@ -247,5 +247,18 @@ func TestCreateNewTopic(t *testing.T) {
 	invoked = false
 	if createNewTopic(c, m, rtm); !invoked {
 		t.Errorf("Expected invoked to be %t, Got: %t", true, false)
+	}
+}
+
+func TestSubstituteUsernames(t *testing.T) {
+	memmap := make(map[string]string)
+	memmap["U13LHF42F"] = "mrjn"
+	memmap["U13LHF42G"] = "pawan"
+	text := "<@U13LHF42F> <@U13LHF42F> <@U13LHF42G>"
+
+	text = substituteUsernames(text, memmap)
+	expected := "@mrjn @mrjn @pawan"
+	if text != expected {
+		t.Errorf("Expected %s, Got: %s", expected, text)
 	}
 }

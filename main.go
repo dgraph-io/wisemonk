@@ -52,9 +52,6 @@ var discourseCategory = flag.String("discoursecat", "Slack",
 	"Discourse category in which new topics would be created.")
 var yoda []byte
 
-// Map of slack userids to usernames.
-var memmap map[string]string
-
 // Message to send when number of messages in an interval >= *maxmsg. We send
 // the Go Proverbs so that we learn all of them eventually :P.
 var proverbs []string = []string{
@@ -276,9 +273,30 @@ func sendMessage(c *Counter, rtm RTM) {
 	callYoda(c, rtm, msg)
 }
 
+func substituteUsernames(text string, memmap map[string]string) string {
+	userRegex, err := regexp.Compile(`<@U[A-Z0-9]{8}>`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res := userRegex.FindAllString(text, -1)
+	if res == nil {
+		return text
+	}
+
+	for _, u := range res {
+		// extracting the userid
+		uid := u[2 : len(u)-1]
+		if uname, ok := memmap[uid]; ok {
+			text = strings.Replace(text, u, "@"+uname, -1)
+		}
+	}
+	return text
+}
+
 // Increment increases the count for a bucket or adds a new bucket with count 1
 // to the Counter c
-func (c *Counter) Increment(m *slack.Msg) {
+func (c *Counter) Increment(m *slack.Msg, memmap map[string]string) {
 	if m.Channel != c.channelId {
 		log.Fatalf("Channel mismatch, Expected: %s, Got: %s",
 			c.channelId, m.Channel)
@@ -289,6 +307,7 @@ func (c *Counter) Increment(m *slack.Msg) {
 		log.Fatal(err)
 	}
 	ts := int64(tsf)
+	m.Text = substituteUsernames(m.Text, memmap)
 	msg := fmt.Sprintf("%-14s: %s", memmap[m.User], m.Text)
 
 	// To check if a bucket for the timestamp already exists
@@ -394,7 +413,8 @@ func askToMeditate(c *Counter, m string) string {
 	return fmt.Sprintf("Okay, I am going to meditate for %s", d)
 }
 
-func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
+func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup,
+	memmap map[string]string) {
 	defer wg.Done()
 	ticker := time.NewTicker(time.Second * 10)
 
@@ -409,7 +429,7 @@ func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup) {
 			}
 			// If we receive a message on the channel, we increment
 			// the counter.
-			c.Increment(msg)
+			c.Increment(msg, memmap)
 		case <-ticker.C:
 			// We perform this check only if the monk is not meditating.
 			if d := c.MeditationEnd(); d < 0 {
@@ -456,7 +476,8 @@ func slackQuery(suffix string) string {
 	return fmt.Sprintf("%s/%s?token=%s", slackPrefix, suffix, *authToken)
 }
 
-func cacheUsernames() {
+func cacheUsernames() map[string]string {
+	memmap := make(map[string]string)
 	q := slackQuery("users.list")
 	var m Members
 
@@ -464,6 +485,7 @@ func cacheUsernames() {
 	for _, u := range m.Users {
 		memmap[u.Id] = u.Name
 	}
+	return memmap
 }
 
 type CategoryRes struct {
@@ -513,7 +535,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	createRegex, err = regexp.Compile(`create topic (.+)`)
+	createRegex, err = regexp.Compile(`wisemonk create topic (.+)`)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -529,8 +551,8 @@ func main() {
 
 	var wg sync.WaitGroup
 	cmap = make(map[string]*Counter)
-	memmap = make(map[string]string)
-	cacheUsernames()
+	// Map of slack userids to usernames.
+	memmap := cacheUsernames()
 
 	schannels := strings.Split(*channelIds, ",")
 	for _, cid := range schannels {
@@ -538,7 +560,7 @@ func main() {
 		c := &Counter{channelId: cid}
 		c.messages = make(chan *slack.Msg, 500)
 		cmap[cid] = c
-		go c.checkOrIncr(rtm, wg)
+		go c.checkOrIncr(rtm, wg, memmap)
 	}
 	go listen(rtm)
 	wg.Wait()
