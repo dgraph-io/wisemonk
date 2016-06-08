@@ -476,12 +476,11 @@ func slackQuery(suffix string) string {
 	return fmt.Sprintf("%s/%s?token=%s", slackPrefix, suffix, *authToken)
 }
 
-func cacheUsernames() map[string]string {
+func cacheUsernames(url string) map[string]string {
 	memmap := make(map[string]string)
-	q := slackQuery("users.list")
 	var m Members
 
-	runQueryAndParseResponse(q, &m)
+	runQueryAndParseResponse(url, &m)
 	for _, u := range m.Users {
 		memmap[u.Id] = u.Name
 	}
@@ -502,15 +501,14 @@ type Category struct {
 
 // Checks if the discourse Category supplied as flag exists. If not
 // it logs error and exits.
-func checkDiscourseCategory() {
+func checkDiscourseCategory(url string) {
 	if *discourseKey == "" {
 		return
 	}
 
-	q := discourseQuery("categories.json")
 	var cr CategoryRes
 
-	runQueryAndParseResponse(q, &cr)
+	runQueryAndParseResponse(url, &cr)
 	exists := false
 	for _, c := range cr.CategoryList.Cats {
 		if c.Name == *discourseCategory {
@@ -543,7 +541,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	checkDiscourseCategory()
+	checkDiscourseCategory(discourseQuery("categories.json"))
 	api := slack.New(*authToken)
 	api.SetDebug(false)
 	rtm := api.NewRTM()
@@ -552,7 +550,7 @@ func main() {
 	var wg sync.WaitGroup
 	cmap = make(map[string]*Counter)
 	// Map of slack userids to usernames.
-	memmap := cacheUsernames()
+	memmap := cacheUsernames(slackQuery("users.list"))
 
 	schannels := strings.Split(*channelIds, ",")
 	for _, cid := range schannels {

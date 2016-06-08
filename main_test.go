@@ -161,7 +161,6 @@ func createServer(t *testing.T, status int, i interface{}) *httptest.Server {
 		}
 		w.Write(b)
 	}))
-	*discoursePrefix = ts.URL
 	return ts
 }
 
@@ -171,6 +170,7 @@ func TestCreateTopic(t *testing.T) {
 	addBuckets(c, "New buckets", timeNow)
 
 	ts := createServer(t, http.StatusNotFound, TopicBody{})
+	*discoursePrefix = ts.URL
 	defer ts.Close()
 
 	if url := createTopic(c, "Test title"); url != "" {
@@ -179,6 +179,7 @@ func TestCreateTopic(t *testing.T) {
 
 	ts = createServer(t, http.StatusOK,
 		TopicBody{Id: 1, Slug: "test-title-created"})
+	*discoursePrefix = ts.URL
 	if url := createTopic(c, "Test title"); !strings.Contains(url,
 		"test-title-created") {
 		t.Errorf("Expected url to contain test-title-created, Got: %s",
@@ -226,6 +227,7 @@ func TestSendMessage(t *testing.T) {
 	invoked = false
 	ts := createServer(t, http.StatusOK, TopicBody{Id: 1,
 		Slug: "test-title-created"})
+	*discoursePrefix = ts.URL
 	defer ts.Close()
 
 	if sendMessage(c, rtm); !invoked {
@@ -241,6 +243,7 @@ func TestCreateNewTopic(t *testing.T) {
 	rtm := &r{}
 	ts := createServer(t, http.StatusOK, TopicBody{Id: 1,
 		Slug: "test-title-created"})
+	*discoursePrefix = ts.URL
 	defer ts.Close()
 
 	*discourseKey = "testkey"
@@ -261,4 +264,46 @@ func TestSubstituteUsernames(t *testing.T) {
 	if text != expected {
 		t.Errorf("Expected %s, Got: %s", expected, text)
 	}
+}
+
+func TestRunQueryAndParseResponse(t *testing.T) {
+	mems := Members{}
+	mems.Users = append(mems.Users, Member{Id: "U13GH76YT", Name: "mrjn"},
+		Member{Id: "U13GH13YT", Name: "pawan"})
+	ts := createServer(t, http.StatusOK, mems)
+	defer ts.Close()
+
+	var m Members
+	runQueryAndParseResponse(ts.URL, &m)
+}
+
+func TestCacheUsernames(t *testing.T) {
+	mems := Members{}
+	mems.Users = append(mems.Users, Member{Id: "U13GH76YT", Name: "mrjn"},
+		Member{Id: "U13GH13YT", Name: "pawan"})
+	ts := createServer(t, http.StatusOK, mems)
+	defer ts.Close()
+
+	memmap := cacheUsernames(ts.URL)
+	if _, ok := memmap["U13GH76YT"]; !ok {
+		t.Errorf("Expected ok to be true. Got false")
+	}
+	uname := memmap["U13GH76YT"]
+	if uname != "mrjn" {
+		t.Errorf("Expected username to be mrjn, Got: ", uname)
+	}
+	if _, ok := memmap["U13GH13YT"]; !ok {
+		t.Errorf("Expected ok to be true. Got false")
+	}
+}
+
+func TestCheckDiscourseCategory(t *testing.T) {
+	cr := CategoryRes{CategoryList: Categories{}}
+	cr.CategoryList.Cats = append(cr.CategoryList.Cats,
+		Category{Name: "Slack"},
+		Category{Name: "Staff"})
+	ts := createServer(t, http.StatusOK, cr)
+	defer ts.Close()
+
+	checkDiscourseCategory(ts.URL)
 }
