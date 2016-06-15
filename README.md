@@ -58,7 +58,7 @@ If successful, wisemonk replies with `Okay, I am going to meditate for 20m`. The
 
 If you are using discourse and you observe that you are having an important discussion, you could create a discourse topic from slack using wisemonk. This topic would have your last n messages and would provide relevant context for further discussion on discourse. The command for creating a topic is
 
-`create topic [title of discourse topic]`
+`wisemonk create topic [title of discourse topic]`
 
 Wisemonk will reply back with the url of the new topic that was created.
 
@@ -68,3 +68,7 @@ Wisemonk is written in Go and makes use of
 
 * [Slack RTM API](https://api.slack.com/rtm)
 * [Discourse API](https://meta.discourse.org/t/discourse-api-documentation/22706)
+
+## About the project
+Wisemonk was born out of our experience at [Dgraph](https://github.com/dgraph-io/dgraph). Read more about why we built it in our [blogpost](https://medium.dgraph.io/wisemonk-a-slackbot-to-move-discussions-from-slack-to-discourse-22a53ddce78f#.rcn1wlv3p).
+
