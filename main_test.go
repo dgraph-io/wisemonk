@@ -86,6 +86,13 @@ func TestAskToMeditate(t *testing.T) {
 		t.Errorf("Expected: %s, Got: %s", em, m)
 	}
 
+	message = "wisemonk meditate for -5m"
+	m = askToMeditate(c, message)
+	em = "Sorry, going back in time is not what I can do."
+	if m != em {
+		t.Errorf("Expected: %s, Got: %s", em, m)
+	}
+
 	message = "wisemonk meditate for 5m"
 	m = askToMeditate(c, message)
 	em = "Okay, I am going to meditate for 5m0s"
@@ -198,6 +205,26 @@ func (rtm *r) SendMessage(msg *slack.OutgoingMessage) {
 
 func (rtm *r) NewOutgoingMessage(text string, channel string) *slack.OutgoingMessage {
 	return new(slack.OutgoingMessage)
+}
+
+func TestSearchDiscourse(t *testing.T) {
+	c := &Counter{channelId: "general"}
+	rtm := &r{}
+	invoked = false
+	*discourseKey = "testkey"
+	ts := createServer(t, http.StatusOK,
+		SearchResponse{Topics: []SearchTopic{
+			{Id: 1, Slug: "test-1"},
+			{Id: 2, Slug: "test-2"},
+		}})
+	*discoursePrefix = ts.URL
+	if searchDiscourse(c, "wisemonk search something", rtm); invoked {
+		t.Errorf("rtm.SendMessage() should not have been called")
+	}
+
+	if searchDiscourse(c, "wisemonk query test", rtm); !invoked {
+		t.Errorf("rtm.SendMessage() should have been called")
+	}
 }
 
 func TestCallYoda(t *testing.T) {

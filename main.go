@@ -27,6 +27,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -117,7 +118,7 @@ func (c *Counter) SetMeditationEnd(d time.Duration) {
 // Map from slack channelId to counter for them.
 var cmap map[string]*Counter
 
-var meditateRegex, createRegex *regexp.Regexp
+var meditateRegex, createRegex, queryRegex *regexp.Regexp
 
 // Gives back the count of messages for the buckets which were created in the
 // interval.
@@ -392,6 +393,10 @@ func askToMeditate(c *Counter, m string) string {
 		return "Sorry, I don't understand you."
 	}
 
+	if d < 0 {
+		return "Sorry, going back in time is not what I can do."
+	}
+
 	if d >= time.Hour {
 		return "It's hard to meditate for more than an hour at one go you know."
 	}
@@ -413,6 +418,44 @@ func askToMeditate(c *Counter, m string) string {
 	return fmt.Sprintf("Okay, I am going to meditate for %s", d)
 }
 
+type SearchTopic struct {
+	Id   int    `json:"id"`
+	Slug string `json:"slug"`
+}
+
+type SearchResponse struct {
+	Topics []SearchTopic `json:"topics"`
+}
+
+func searchDiscourse(c *Counter, m string, rtm RTM) {
+	if *discourseKey == "" {
+		return
+	}
+	res := queryRegex.FindStringSubmatch(m)
+	if res == nil {
+		return
+	}
+
+	query := res[1]
+	q := fmt.Sprintf("%s/%s?q=%s&order=%s", *discoursePrefix,
+		"search.json", url.QueryEscape(query), "views")
+
+	var sr SearchResponse
+	runQueryAndParseResponse(q, &sr)
+	// Picking just the top 3 topics
+	if len(sr.Topics) > 3 {
+		sr.Topics = sr.Topics[:3]
+	}
+	var buf bytes.Buffer
+	for _, t := range sr.Topics {
+		buf.WriteString(fmt.Sprintf("%s/t/%s/%d\n", *discoursePrefix,
+			t.Slug, t.Id))
+	}
+	if buf.Len() > 0 {
+		rtm.SendMessage(rtm.NewOutgoingMessage(buf.String(), c.channelId))
+	}
+}
+
 func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup,
 	memmap map[string]string) {
 	defer wg.Done()
@@ -421,6 +464,7 @@ func (c *Counter) checkOrIncr(rtm *slack.RTM, wg sync.WaitGroup,
 	for {
 		select {
 		case msg := <-c.messages:
+			searchDiscourse(c, msg.Text, rtm)
 			createNewTopic(c, msg.Text, rtm)
 			m := askToMeditate(c, msg.Text)
 			if m != "" {
@@ -534,6 +578,10 @@ func init() {
 		log.Fatal(err)
 	}
 	createRegex, err = regexp.Compile(`wisemonk create topic (.+)`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	queryRegex, err = regexp.Compile(`wisemonk query (.+)`)
 	if err != nil {
 		log.Fatal(err)
 	}
