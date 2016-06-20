@@ -1,0 +1,19 @@
+{
+        "token": "xoxb",
+        "discourseprefix": "https://discuss.dgraph.io",
+        "discoursekey": "000a9b9b87357092931e068",
+        "channels": {
+                "G1D59039B": {
+                        "interval": "10m",
+                        "maxmsg":20,
+                        "search_over":["Minions","Devs","Users","Decisions"],
+                        "create_topic_in": "Slack"
+                },
+                "C13LH03RR": {
+                        "interval": "10m",
+                        "maxmsg":1000,
+                        "search_over":["Dev","Users","Docs"],
+                        "create_topic_in": "Users"
+                }
+        }
+}
