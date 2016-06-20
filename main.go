@@ -466,6 +466,9 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	}
 	if buf.Len() > 0 {
 		rtm.SendMessage(rtm.NewOutgoingMessage(buf.String(), c.ChannelId))
+	} else {
+		rtm.SendMessage(rtm.NewOutgoingMessage("Sorry, I didn't find anything.",
+			c.ChannelId))
 	}
 }
 
