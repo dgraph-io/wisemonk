@@ -1,0 +1,14 @@
+{
+        "token": "",
+        "discourseprefix": "https://discuss.dgraph.io",
+        "discoursekey": "",
+        "channels": {
+                "G1D59039B": {
+                        "interval": "10m",
+                        "maxmsg":20,
+                        "search_over":["Minions","Devs","Users",
+                                "Blog","Use Cases"],
+                        "create_topic_in": "Slack"
+                }
+        }
+}
