@@ -208,14 +208,17 @@ func (rtm *r) NewOutgoingMessage(text string, channel string) *slack.OutgoingMes
 }
 
 func TestSearchDiscourse(t *testing.T) {
-	c := &Counter{ChannelId: "general"}
+	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
+	discourseCategory = make(map[int]string)
+	discourseCategory[1] = "Slack"
+	discourseCategory[2] = "Reading"
 	rtm := &r{}
 	invoked = false
 	conf.DiscKey = "testkey"
 	ts := createServer(t, http.StatusOK,
 		SearchResponse{Topics: []SearchTopic{
-			{Id: 1, Slug: "test-1"},
-			{Id: 2, Slug: "test-2"},
+			{Id: 1, Slug: "test-1", Category: 1},
+			{Id: 2, Slug: "test-2", Category: 2},
 		}})
 	conf.DiscPrefix = ts.URL
 	if searchDiscourse(c, "wisemonk search something", rtm); invoked {
@@ -224,6 +227,22 @@ func TestSearchDiscourse(t *testing.T) {
 
 	if searchDiscourse(c, "wisemonk query test", rtm); !invoked {
 		t.Errorf("rtm.SendMessage() should have been called")
+	}
+}
+
+func TestFilterTopics(t *testing.T) {
+	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
+	discourseCategory = make(map[int]string)
+	discourseCategory[1] = "Slack"
+	discourseCategory[2] = "Reading"
+	topics := []SearchTopic{
+		{Id: 1, Slug: "test-1", Category: 1},
+		{Id: 2, Slug: "test-2", Category: 2},
+	}
+	ft := filterTopics(c, topics)
+	if len(ft) != 1 {
+		t.Errorf("Expected filtered topics to have length %d. Got: %d",
+			1, len(ft))
 	}
 }
 

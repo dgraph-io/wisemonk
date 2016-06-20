@@ -427,12 +427,13 @@ func filterTopics(c *Counter, topics []SearchTopic) []SearchTopic {
 	for idx, t := range topics {
 		keep := false
 		for _, cat := range c.SearchOver {
+			keep = false
 			if discourseCategory[t.Category] == cat {
 				keep = true
 				break
 			}
 		}
-		if !keep {
+		if keep {
 			filteredTopics = append(filteredTopics, topics[idx])
 		}
 	}
