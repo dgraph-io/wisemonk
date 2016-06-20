@@ -222,10 +222,10 @@ func TestSearchDiscourse(t *testing.T) {
 		}})
 	conf.DiscPrefix = ts.URL
 	if searchDiscourse(c, "wisemonk search something", rtm); invoked {
-		t.Errorf("rtm.SendMessage() should not have been called")
+		t.Errorf("rtm.SendMessage() should have been called")
 	}
 
-	if searchDiscourse(c, "wisemonk query test", rtm); !invoked {
+	if searchDiscourse(c, "wisemonk query test 5", rtm); !invoked {
 		t.Errorf("rtm.SendMessage() should have been called")
 	}
 }

@@ -450,6 +450,13 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	}
 
 	query := res[1]
+	maxResults, err := strconv.Atoi(res[2])
+	if err != nil {
+		rtm.SendMessage(rtm.NewOutgoingMessage("Sorry, I didn't understand you.",
+			c.ChannelId))
+		return
+	}
+
 	q := discourseQuery("search.json", fmt.Sprintf("q=%s&order=%s",
 		url.QueryEscape(query), "views"))
 
@@ -457,8 +464,8 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	runQueryAndParseResponse(q, &sr)
 	sr.Topics = filterTopics(c, sr.Topics)
 	// Picking just the top 3 topics
-	if len(sr.Topics) > 3 {
-		sr.Topics = sr.Topics[:3]
+	if len(sr.Topics) > maxResults {
+		sr.Topics = sr.Topics[:maxResults]
 	}
 	var buf bytes.Buffer
 	for _, t := range sr.Topics {
@@ -611,7 +618,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	queryRegex, err = regexp.Compile(`wisemonk query (.+)`)
+	queryRegex, err = regexp.Compile(`wisemonk query (.+) (\d)`)
 	if err != nil {
 		log.Fatal(err)
 	}
