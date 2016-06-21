@@ -108,7 +108,7 @@ func (c *Counter) SetMeditationEnd(d time.Duration) {
 	c.meditationEnd = time.Now().Add(d)
 }
 
-var meditateRegex, createRegex, queryRegex *regexp.Regexp
+var meditateRegex, createRegex, queryCountRegex, queryRegex *regexp.Regexp
 
 // Gives back the count of messages for the buckets which were created in the
 // interval.
@@ -442,20 +442,38 @@ func filterTopics(c *Counter, topics []SearchTopic) []SearchTopic {
 	return filteredTopics
 }
 
+func parseSearchQuery(m string) (string, int) {
+	var query string
+	var count int
+
+	res := queryCountRegex.FindStringSubmatch(m)
+	if res == nil {
+		// TODO(pawan) - Get all info from just one regex.
+		match := queryRegex.FindStringSubmatch(m)
+		if match != nil {
+			// Default value of count is kept as 3.
+			return match[1], 3
+		}
+		return query, count
+	}
+
+	query = res[1]
+	var err error
+	count, err = strconv.Atoi(res[2])
+	if err != nil {
+		count = 3
+	}
+	return query, count
+}
+
 func searchDiscourse(c *Counter, m string, rtm RTM) {
 	if conf.DiscKey == "" {
 		return
 	}
-	res := queryRegex.FindStringSubmatch(m)
-	if res == nil {
-		return
-	}
 
-	query := res[1]
-	maxResults, err := strconv.Atoi(res[2])
-	if err != nil {
-		maxResults = 3
-		log.Print("While converting to integer. %v", res[2])
+	query, maxResults := parseSearchQuery(m)
+	if query == "" {
+		return
 	}
 
 	q := discourseQuery("search.json", fmt.Sprintf("q=%s&order=%s",
@@ -619,7 +637,11 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	queryRegex, err = regexp.Compile(`wisemonk query (.+) ([0-9]+)`)
+	queryCountRegex, err = regexp.Compile(`wisemonk query (.+) ([0-9]+)`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	queryRegex, err = regexp.Compile(`wisemonk query (.+)`)
 	if err != nil {
 		log.Fatal(err)
 	}

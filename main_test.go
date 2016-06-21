@@ -371,3 +371,35 @@ func TestReadConfig(t *testing.T) {
 			len(conf.Channels))
 	}
 }
+
+func TestParseSearchQuery(t *testing.T) {
+	m := "wisemonk query performance blogpost abc"
+	q, c := parseSearchQuery(m)
+	expected := "performance blogpost abc"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 3 {
+		t.Errorf("Expected count to be %d. Got: %d", 3, c)
+	}
+
+	m = "wisemonk query performance blogpost 4"
+	q, c = parseSearchQuery(m)
+	expected = "performance blogpost"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 4 {
+		t.Errorf("Expected count to be %d. Got: %d", 4, c)
+	}
+
+	m = "wisemonk query performance"
+	q, c = parseSearchQuery(m)
+	expected = "performance"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 3 {
+		t.Errorf("Expected count to be %d. Got: %d", 3, c)
+	}
+}
