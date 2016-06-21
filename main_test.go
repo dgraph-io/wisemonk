@@ -346,12 +346,12 @@ func TestCacheUsernames(t *testing.T) {
 func TestCheckDiscourseCategory(t *testing.T) {
 	readConfig("config_test.json")
 	discourseCategory = make(map[int]string)
-	discourseCategory[1] = "Slack"
-	discourseCategory[2] = "Users"
+	discourseCategory[1] = "slack"
+	discourseCategory[2] = "user"
 	cr := CategoryRes{CategoryList: Categories{}}
 	cr.CategoryList.Cats = append(cr.CategoryList.Cats,
-		Category{Name: "Slack"},
-		Category{Name: "Users"})
+		Category{Slug: "slack"},
+		Category{Slug: "user"})
 	ts := createServer(t, http.StatusOK, cr)
 	defer ts.Close()
 

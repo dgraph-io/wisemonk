@@ -6,14 +6,15 @@
                 "G1D59039B": {
                         "interval": "10m",
                         "maxmsg":20,
-                        "search_over":["Minions","Devs","Users","Decisions"],
-                        "create_topic_in": "Slack"
+                        "search_over":["minions","dev","user","decisions","reading",
+                                "blog","faqs","docs","use-cases","recruit"],
+                        "create_topic_in": "slack"
                 },
                 "C13LH03RR": {
                         "interval": "10m",
                         "maxmsg":1000,
-                        "search_over":["Dev","Users","Docs"],
-                        "create_topic_in": "Users"
+                        "search_over":["dev","user","docs","faqs"],
+                        "create_topic_in": "user"
                 }
         }
 }

@@ -430,7 +430,6 @@ func filterTopics(c *Counter, topics []SearchTopic) []SearchTopic {
 	for idx, t := range topics {
 		keep := false
 		for _, cat := range c.SearchOver {
-			keep = false
 			if discourseCategory[t.Category] == cat {
 				keep = true
 				break
@@ -456,6 +455,7 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	maxResults, err := strconv.Atoi(res[2])
 	if err != nil {
 		maxResults = 3
+		log.Print("While converting to integer. %v", res[2])
 	}
 
 	q := discourseQuery("search.json", fmt.Sprintf("q=%s&order=%s",
@@ -566,7 +566,7 @@ type Categories struct {
 
 type Category struct {
 	Id   int    `json:"id"`
-	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 var discourseCategory map[int]string
@@ -581,7 +581,7 @@ func cacheCategories(url string) {
 
 	runQueryAndParseResponse(url, &cr)
 	for _, c := range cr.CategoryList.Cats {
-		discourseCategory[c.Id] = c.Name
+		discourseCategory[c.Id] = c.Slug
 	}
 	checkDiscourseCategory(conf.Channels, url)
 }
