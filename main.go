@@ -416,6 +416,9 @@ type SearchTopic struct {
 	Id       int    `json:"id"`
 	Slug     string `json:"slug"`
 	Category int    `json:"category_id"`
+	Replies  int    `json:"reply_count"`
+	Posts    int    `json:"posts_count"`
+	Views    int    `json:"views"`
 }
 
 type SearchResponse struct {
@@ -452,13 +455,11 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	query := res[1]
 	maxResults, err := strconv.Atoi(res[2])
 	if err != nil {
-		rtm.SendMessage(rtm.NewOutgoingMessage("Sorry, I didn't understand you.",
-			c.ChannelId))
-		return
+		maxResults = 3
 	}
 
 	q := discourseQuery("search.json", fmt.Sprintf("q=%s&order=%s",
-		url.QueryEscape(query), "views"))
+		url.QueryEscape(query), "activity"))
 
 	var sr SearchResponse
 	runQueryAndParseResponse(q, &sr)
@@ -469,8 +470,8 @@ func searchDiscourse(c *Counter, m string, rtm RTM) {
 	}
 	var buf bytes.Buffer
 	for _, t := range sr.Topics {
-		buf.WriteString(fmt.Sprintf("%s/t/%s/%d\n", conf.DiscPrefix,
-			t.Slug, t.Id))
+		buf.WriteString(fmt.Sprintf("%s/t/%s/%d (Views - %d, Replies - %d, Posts %d)\n",
+			conf.DiscPrefix, t.Slug, t.Id, t.Views, t.Replies, t.Posts))
 	}
 	if buf.Len() > 0 {
 		rtm.SendMessage(rtm.NewOutgoingMessage(buf.String(), c.ChannelId))
@@ -618,7 +619,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	queryRegex, err = regexp.Compile(`wisemonk query (.+) (\d)`)
+	queryRegex, err = regexp.Compile(`wisemonk query (.+) ([0-9]+)`)
 	if err != nil {
 		log.Fatal(err)
 	}
