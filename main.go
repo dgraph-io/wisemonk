@@ -38,8 +38,6 @@ import (
 	"github.com/nlopes/slack"
 )
 
-var yoda []byte
-
 const slackPrefix = "https://slack.com/api"
 
 // Message to send when number of messages in an interval >= *maxmsg. We send
@@ -152,8 +150,8 @@ type RTM interface {
 func callYoda(c *Counter, rtm RTM, m string) {
 	// Buckets set to nil after getting messages from it.
 	c.buckets = nil
-	msg := fmt.Sprintf("```%s\n%s\n%s```",
-		string(yoda), proverbs[rand.Intn(len(proverbs))],
+	msg := fmt.Sprintf("```%s\n%s```",
+		proverbs[rand.Intn(len(proverbs))],
 		m)
 	rtm.SendMessage(rtm.NewOutgoingMessage(msg, c.ChannelId))
 }
@@ -624,10 +622,6 @@ func checkDiscourseCategory(channels map[string]*Counter, url string) {
 
 func init() {
 	var err error
-	yoda, err = ioutil.ReadFile("yoda.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
 	// We capture the duration using a capturing group.
 	meditateRegex, err = regexp.Compile(`wisemonk meditate for (.+)`)
 	if err != nil {
