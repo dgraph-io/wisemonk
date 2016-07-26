@@ -261,7 +261,7 @@ func sendMessage(c *Counter, rtm RTM) {
 	// Incase we encountered an error from discourse, createTopic
 	// would return an empty string as url.
 	if url != "" {
-		msg = fmt.Sprintf("Please move your discussion to %s", url)
+		msg = fmt.Sprintf("You may want to move the discussion to %s", url)
 	}
 	callYoda(c, rtm, msg)
 }
