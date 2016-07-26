@@ -86,6 +86,13 @@ func TestAskToMeditate(t *testing.T) {
 		t.Errorf("Expected: %s, Got: %s", em, m)
 	}
 
+	message = "wisemonk meditate for -5m"
+	m = askToMeditate(c, message)
+	em = "Sorry, going back in time is not what I can do."
+	if m != em {
+		t.Errorf("Expected: %s, Got: %s", em, m)
+	}
+
 	message = "wisemonk meditate for 5m"
 	m = askToMeditate(c, message)
 	em = "Okay, I am going to meditate for 5m0s"
@@ -102,7 +109,7 @@ func TestAskToMeditate(t *testing.T) {
 }
 
 func TestIncrement(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general"}
 	msgs := []slack.Msg{
 		{Channel: "general", Timestamp: "1465010249.000606",
 			Text: " First message"},
@@ -137,11 +144,11 @@ func addBuckets(c *Counter, text string, t int64) {
 }
 
 func TestCount(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general", Interval: "10m"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
 
-	timeBfrInterval := time.Now().Add(-*interval).Unix()
+	timeBfrInterval := time.Now().Add(-10 * time.Minute).Unix()
 	addBuckets(c, "Old buckets", timeBfrInterval)
 	if count := c.Count(); count != 10 {
 		t.Errorf("Expected count to be %d, Got: %d", 10, count)
@@ -165,12 +172,12 @@ func createServer(t *testing.T, status int, i interface{}) *httptest.Server {
 }
 
 func TestCreateTopic(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
 
 	ts := createServer(t, http.StatusNotFound, TopicBody{})
-	*discoursePrefix = ts.URL
+	conf.DiscPrefix = ts.URL
 	defer ts.Close()
 
 	if url := createTopic(c, "Test title"); url != "" {
@@ -179,7 +186,7 @@ func TestCreateTopic(t *testing.T) {
 
 	ts = createServer(t, http.StatusOK,
 		TopicBody{Id: 1, Slug: "test-title-created"})
-	*discoursePrefix = ts.URL
+	conf.DiscPrefix = ts.URL
 	if url := createTopic(c, "Test title"); !strings.Contains(url,
 		"test-title-created") {
 		t.Errorf("Expected url to contain test-title-created, Got: %s",
@@ -200,8 +207,47 @@ func (rtm *r) NewOutgoingMessage(text string, channel string) *slack.OutgoingMes
 	return new(slack.OutgoingMessage)
 }
 
+func TestSearchDiscourse(t *testing.T) {
+	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
+	discourseCategory = make(map[int]string)
+	discourseCategory[1] = "Slack"
+	discourseCategory[2] = "Reading"
+	rtm := &r{}
+	invoked = false
+	conf.DiscKey = "testkey"
+	ts := createServer(t, http.StatusOK,
+		SearchResponse{Topics: []SearchTopic{
+			{Id: 1, Slug: "test-1", Category: 1},
+			{Id: 2, Slug: "test-2", Category: 2},
+		}})
+	conf.DiscPrefix = ts.URL
+	if searchDiscourse(c, "wisemonk search something", rtm); invoked {
+		t.Errorf("rtm.SendMessage() should have been called")
+	}
+
+	if searchDiscourse(c, "wisemonk query test 5", rtm); !invoked {
+		t.Errorf("rtm.SendMessage() should have been called")
+	}
+}
+
+func TestFilterTopics(t *testing.T) {
+	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
+	discourseCategory = make(map[int]string)
+	discourseCategory[1] = "Slack"
+	discourseCategory[2] = "Reading"
+	topics := []SearchTopic{
+		{Id: 1, Slug: "test-1", Category: 1},
+		{Id: 2, Slug: "test-2", Category: 2},
+	}
+	ft := filterTopics(c, topics)
+	if len(ft) != 1 {
+		t.Errorf("Expected filtered topics to have length %d. Got: %d",
+			1, len(ft))
+	}
+}
+
 func TestCallYoda(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
 	rtm := &r{}
@@ -212,7 +258,7 @@ func TestCallYoda(t *testing.T) {
 }
 
 func TestSendMessage(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
 	rtm := &r{}
@@ -222,12 +268,12 @@ func TestSendMessage(t *testing.T) {
 		t.Errorf("Expected invoked to be %t, Got: %t", true, false)
 	}
 
-	*discourseKey = "testkey"
+	conf.DiscKey = "testkey"
 	addBuckets(c, "New buckets", timeNow)
 	invoked = false
 	ts := createServer(t, http.StatusOK, TopicBody{Id: 1,
 		Slug: "test-title-created"})
-	*discoursePrefix = ts.URL
+	conf.DiscPrefix = ts.URL
 	defer ts.Close()
 
 	if sendMessage(c, rtm); !invoked {
@@ -236,17 +282,17 @@ func TestSendMessage(t *testing.T) {
 }
 
 func TestCreateNewTopic(t *testing.T) {
-	c := &Counter{channelId: "general"}
+	c := &Counter{ChannelId: "general"}
 	timeNow := time.Now().Unix()
 	addBuckets(c, "New buckets", timeNow)
 	m := "wisemonk create topic testing wisemonk"
 	rtm := &r{}
 	ts := createServer(t, http.StatusOK, TopicBody{Id: 1,
 		Slug: "test-title-created"})
-	*discoursePrefix = ts.URL
+	conf.DiscPrefix = ts.URL
 	defer ts.Close()
 
-	*discourseKey = "testkey"
+	conf.DiscKey = "testkey"
 	invoked = false
 	if createNewTopic(c, m, rtm); !invoked {
 		t.Errorf("Expected invoked to be %t, Got: %t", true, false)
@@ -298,12 +344,62 @@ func TestCacheUsernames(t *testing.T) {
 }
 
 func TestCheckDiscourseCategory(t *testing.T) {
+	readConfig("config_test.json")
+	discourseCategory = make(map[int]string)
+	discourseCategory[1] = "slack"
+	discourseCategory[2] = "user"
 	cr := CategoryRes{CategoryList: Categories{}}
 	cr.CategoryList.Cats = append(cr.CategoryList.Cats,
-		Category{Name: "Slack"},
-		Category{Name: "Staff"})
+		Category{Slug: "slack"},
+		Category{Slug: "user"})
 	ts := createServer(t, http.StatusOK, cr)
 	defer ts.Close()
 
-	checkDiscourseCategory(ts.URL)
+	checkDiscourseCategory(conf.Channels, ts.URL)
+}
+
+func TestReadConfig(t *testing.T) {
+	readConfig("config_test.json")
+	if conf.Token == "" {
+		t.Errorf("Expected token to not be nil.")
+	}
+	if conf.DiscPrefix == "" {
+		t.Errorf("Expected discuss prefix to not be nil.")
+	}
+	if len(conf.Channels) != 2 {
+		t.Errorf("Expected len of Channels to be %d. Got: %d", 2,
+			len(conf.Channels))
+	}
+}
+
+func TestParseSearchQuery(t *testing.T) {
+	m := "wisemonk query performance blogpost abc"
+	q, c := parseSearchQuery(m)
+	expected := "performance blogpost abc"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 3 {
+		t.Errorf("Expected count to be %d. Got: %d", 3, c)
+	}
+
+	m = "wisemonk query performance blogpost 4"
+	q, c = parseSearchQuery(m)
+	expected = "performance blogpost"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 4 {
+		t.Errorf("Expected count to be %d. Got: %d", 4, c)
+	}
+
+	m = "wisemonk query performance"
+	q, c = parseSearchQuery(m)
+	expected = "performance"
+	if q != expected {
+		t.Errorf("Expected query to be: %s. Got: %s", expected, q)
+	}
+	if c != 3 {
+		t.Errorf("Expected count to be %d. Got: %d", 3, c)
+	}
 }
