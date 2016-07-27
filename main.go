@@ -233,7 +233,7 @@ func createTopic(c *Counter, title string) string {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("Topic: %v\nResponse status code: %d, body: %s",
+		log.Printf("Topic: %+v\nResponse status code: %d, body: %s",
 			t, res.StatusCode, string(body))
 		return ""
 	}
