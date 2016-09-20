@@ -34,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/nlopes/slack"
 )
@@ -132,6 +133,7 @@ func (c *Counter) Count() int {
 			c.buckets[i-idx] = c.buckets[i]
 		}
 		c.buckets = c.buckets[0 : len(c.buckets)-idx]
+
 	}
 
 	count := 0
@@ -181,6 +183,13 @@ func topicUrl(tb TopicBody) string {
 
 func sanitizeTitle(title string) string {
 	t := strings.Trim(title, " ")
+	t = strings.Map(func(r rune) rune {
+		// We have already trimmed space frome extremes, lets allow it between words.
+		if unicode.IsSpace(r) || unicode.IsDigit(r) || unicode.IsLetter(r) {
+			return r
+		}
+		return -1
+	}, t)
 	// Discourse requires title to be atleast 20 chars.
 	minLen := 20
 	if len(t) < minLen {
@@ -218,6 +227,7 @@ func createTopic(c *Counter, title string) string {
 	bb := new(bytes.Buffer)
 	json.NewEncoder(bb).Encode(t)
 	q := discourseQuery("posts.json", "")
+	fmt.Println(q, "topic", t)
 	res, err := http.Post(q, "application/json", bb)
 	if err != nil {
 		log.Fatal(err)
@@ -428,7 +438,7 @@ func filterTopics(c *Counter, topics []SearchTopic) []SearchTopic {
 	for idx, t := range topics {
 		keep := false
 		for _, cat := range c.SearchOver {
-			if discourseCategory[t.Category] == cat {
+			if discourseCategory[strconv.Itoa(t.Category)] == cat {
 				keep = true
 				break
 			}
@@ -585,7 +595,7 @@ type Category struct {
 	Slug string `json:"slug"`
 }
 
-var discourseCategory map[int]string
+var discourseCategory map[string]string
 
 func cacheCategories(url string) {
 	if conf.DiscKey == "" {
@@ -593,11 +603,11 @@ func cacheCategories(url string) {
 	}
 
 	var cr CategoryRes
-	discourseCategory = make(map[int]string)
+	discourseCategory = make(map[string]string)
 
 	runQueryAndParseResponse(url, &cr)
 	for _, c := range cr.CategoryList.Cats {
-		discourseCategory[c.Id] = c.Slug
+		discourseCategory[strconv.Itoa(c.Id)] = c.Slug
 	}
 	checkDiscourseCategory(conf.Channels, url)
 }
@@ -607,8 +617,8 @@ func cacheCategories(url string) {
 func checkDiscourseCategory(channels map[string]*Counter, url string) {
 	for _, channel := range channels {
 		exists := false
-		for _, cname := range discourseCategory {
-			if cname == channel.CreateTopicIn {
+		for cid, cname := range discourseCategory {
+			if cid == channel.CreateTopicIn || cname == channel.CreateTopicIn {
 				exists = true
 				break
 			}

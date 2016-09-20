@@ -49,8 +49,8 @@ func TestSanitizeTitle(t *testing.T) {
 
 	title = `This title has more than 100chars. It should be trimmed
 	down. We should avoid having long titles obviously`
-	expected = `This title has more than 100chars. It should be trimmed
-	down. We should avoid having long titles`
+	expected = `This title has more than 100chars It should be trimmed
+	down We should avoid having long titles`
 	if st := sanitizeTitle(title); st != expected {
 		t.Errorf("Expected: %s, Got: %s", expected, st)
 	}
@@ -209,9 +209,9 @@ func (rtm *r) NewOutgoingMessage(text string, channel string) *slack.OutgoingMes
 
 func TestSearchDiscourse(t *testing.T) {
 	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
-	discourseCategory = make(map[int]string)
-	discourseCategory[1] = "Slack"
-	discourseCategory[2] = "Reading"
+	discourseCategory = make(map[string]string)
+	discourseCategory["1"] = "Slack"
+	discourseCategory["2"] = "Reading"
 	rtm := &r{}
 	invoked = false
 	conf.DiscKey = "testkey"
@@ -232,9 +232,9 @@ func TestSearchDiscourse(t *testing.T) {
 
 func TestFilterTopics(t *testing.T) {
 	c := &Counter{ChannelId: "general", SearchOver: []string{"Slack"}}
-	discourseCategory = make(map[int]string)
-	discourseCategory[1] = "Slack"
-	discourseCategory[2] = "Reading"
+	discourseCategory = make(map[string]string)
+	discourseCategory["1"] = "Slack"
+	discourseCategory["2"] = "Reading"
 	topics := []SearchTopic{
 		{Id: 1, Slug: "test-1", Category: 1},
 		{Id: 2, Slug: "test-2", Category: 2},
@@ -345,9 +345,9 @@ func TestCacheUsernames(t *testing.T) {
 
 func TestCheckDiscourseCategory(t *testing.T) {
 	readConfig("config_test.json")
-	discourseCategory = make(map[int]string)
-	discourseCategory[1] = "slack"
-	discourseCategory[2] = "user"
+	discourseCategory = make(map[string]string)
+	discourseCategory["1"] = "slack"
+	discourseCategory["2"] = "user"
 	cr := CategoryRes{CategoryList: Categories{}}
 	cr.CategoryList.Cats = append(cr.CategoryList.Cats,
 		Category{Slug: "slack"},
